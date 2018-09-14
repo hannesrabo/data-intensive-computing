@@ -63,7 +63,13 @@ public class TopTen {
 				// Discarding the invalid row.
 				if (id != -1) {
 					Text entryText = new Text(value);
+					// This is a problem. We can not have more than one value per key.../
 					repToRecordMap.put(rating, entryText);
+				}
+				
+				// Delete unnecessary data.
+				if (repToRecordMap.size() > 10) {
+					repToRecordMap.remove(repToRecordMap.firstKey());
 				}
 			}
 			
@@ -75,15 +81,9 @@ public class TopTen {
 	protected void cleanup(Context context) throws IOException, InterruptedException {
 	    // Output our ten records to the reducers with a null key
 		try {
-			int i = 0;
 			for(Map.Entry<Integer,Text> entry : repToRecordMap.entrySet()) {
-				if (i < 10) {
-					Text entryText = new Text(entry.getValue());
-					context.write(NullWritable.get(), entryText);
-					i++;
-				} else {
-					return;
-				}
+				Text entryText = new Text(entry.getValue());
+				context.write(NullWritable.get(), entryText);
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -104,20 +104,26 @@ public class TopTen {
 				Map<String, String> xmlMap = transformXmlToMap(tempVal);
 				int id 		= Integer.parseInt(xmlMap.get("Id"));
 				int rating 	= Integer.parseInt(xmlMap.get("Reputation"));
-				repToRecordMap.put(id, rating);
+
+				repToRecordMap.put(rating, id);
+
+				// Delete unnecessary data.
+				if (repToRecordMap.size() > 10) {
+					repToRecordMap.remove(repToRecordMap.firstKey());
+				}
 			}
 
 			// Pushing the results into the db
 			for(Map.Entry<Integer,Integer> entry : repToRecordMap.entrySet()) {
-				// Parsing the xml
-				System.out.println("----------> " + entry);
+				// This prints the entry if we want to see this in plaintext.
+				// System.out.println("----------> " + entry);
 
 				// create hbase put with rowkey as the id
-				Put insHBase = new Put(Bytes.toBytes(entry.getKey()));
+				Put insHBase = new Put(Bytes.toBytes(entry.getValue()));
 
-				// insert rating to hbase
-				insHBase.add(Bytes.toBytes("info"), Bytes.toBytes("id"), Bytes.toBytes(entry.getKey()));
-				insHBase.add(Bytes.toBytes("info"), Bytes.toBytes("rep"), Bytes.toBytes(entry.getValue()));
+				// insert rating to the hbase info columns
+				insHBase.add(Bytes.toBytes("info"), Bytes.toBytes("id"), Bytes.toBytes(entry.getValue()));
+				insHBase.add(Bytes.toBytes("info"), Bytes.toBytes("rep"), Bytes.toBytes(entry.getKey()));
 
 				// write data to Hbase table
 				context.write(null, insHBase);
@@ -137,13 +143,10 @@ public class TopTen {
 		job.setNumReduceTasks(1);
 		
 		job.setMapperClass(TopTenMapper.class);
-		// job.setCombinerClass(TopTenReducer.class);
 		job.setReducerClass(TopTenReducer.class);
 
 		job.setMapOutputKeyClass(NullWritable.class);
 		job.setMapOutputValueClass(Text.class);
-		// job.setOutputKeyClass(NullWritable.class);
-		// job.setOutputValueClass(Put.class);
 		
 		FileInputFormat.addInputPath(job, new Path(args[0]));
 
