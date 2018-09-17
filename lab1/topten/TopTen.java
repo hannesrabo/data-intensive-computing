@@ -48,7 +48,7 @@ public class TopTen {
 
     public static class TopTenMapper extends Mapper<Object, Text, NullWritable, Text> {
 	// Stores a map of user reputation to the record
-	TreeMap<Integer, Text> repToRecordMap = new TreeMap<Integer, Text>(Collections.reverseOrder());
+	TreeMap<Integer, Text> repToRecordMap = new TreeMap<Integer, Text>();
 
 	public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
 		try {
@@ -103,20 +103,21 @@ public class TopTen {
 				String tempVal = entry.toString().trim();
 				Map<String, String> xmlMap = transformXmlToMap(tempVal);
 				int id 		= Integer.parseInt(xmlMap.get("Id"));
-				int rating 	= Integer.parseInt(xmlMap.get("Reputation"));
+				int rating 	= Integer.parseInt(xmlMap.get("Reputation"));	
 
 				repToRecordMap.put(rating, id);
 
 				// Delete unnecessary data.
 				if (repToRecordMap.size() > 10) {
 					repToRecordMap.remove(repToRecordMap.firstKey());
+
 				}
 			}
 
 			// Pushing the results into the db
 			for(Map.Entry<Integer,Integer> entry : repToRecordMap.entrySet()) {
 				// This prints the entry if we want to see this in plaintext.
-				// System.out.println("----------> " + entry);
+				System.out.println("----------> ID:" + entry.getValue() + " \tReputation: " + entry.getKey());
 
 				// create hbase put with rowkey as the id
 				Put insHBase = new Put(Bytes.toBytes(entry.getValue()));
