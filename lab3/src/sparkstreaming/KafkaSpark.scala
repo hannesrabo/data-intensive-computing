@@ -45,7 +45,7 @@ object KafkaSpark {
                               ssc, kafkaConf, Array("avg"))
 
     // Mapping the output records
-    val pairs = messages.map(record => (record.key, record.value)
+    val pairs = messages.map(record => (record.key, record.value)) // Reduce by key here?
 
     // measure the average value for each key in a stateful manner
     def mappingFunc(key: String, value: Option[Double], state: State[Double]): (String, Double) = {
@@ -56,7 +56,7 @@ object KafkaSpark {
     val stateDstream = pairs.mapWithState(StateSpec.function(mappingFunc _))
 
     // store the result in Cassandra
-    stateDstream.<FILL IN>
+    stateDstream.saveToCassandra("avg_space", "avg")
 
     ssc.start()
     ssc.awaitTermination()
