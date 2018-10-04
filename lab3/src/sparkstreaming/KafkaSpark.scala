@@ -39,26 +39,47 @@ object KafkaSpark {
     // Create the spark context
     val conf = new SparkConf().setMaster("local[4]").setAppName("AverageStreamApp")
     val ssc = new StreamingContext(conf, Seconds(1))
+    ssc.checkpoint("file:///tmp/spark/checkpoint")
 
-    // Attach context to kafka
-    val messages = KafkaUtils.createDirectStream[ String, Integer, StringDecoder, DefaultDecoder](
-                              ssc, kafkaConf, Array("avg"))
+   // Attach context to kafka
+    val messages = KafkaUtils.createDirectStream[ String, String, StringDecoder, StringDecoder ]( 
+                              ssc,
+                              kafkaConf, 
+                              "avg".split(",").toSet  
+                              )
 
     // Mapping the output records
-    val pairs = messages.map(record => (record.key, record.value)) // Reduce by key here?
+    val pairs = messages.map( value => (value._2).split(",") )
+                        .map( message => (message(0), message(1).toDouble) )
+
 
     // measure the average value for each key in a stateful manner
     def mappingFunc(key: String, value: Option[Double], state: State[Double]): (String, Double) = {
-      // TODO ADD THIS!
+      if (state.exists() && !state.isTimingOut() && value.isDefined) {
+        val existingState = state.get()
+        
+        val newState = (existingState + value.get) / 2 // This is a strange way to calculate average 
+                                                      // but it is the best we can do with only one input state
+        // Push state
+        state.update(newState)
+        return (key, newState)
+      } else if (value.isDefined) {
+        val initialValue = value.get
+        state.update(initialValue)
+        return (key, initialValue)
+      } else {
+        return ("Err", 0.0)
+      }
     }
 
     // Attach the mapping function
     val stateDstream = pairs.mapWithState(StateSpec.function(mappingFunc _))
 
     // store the result in Cassandra
-    stateDstream.saveToCassandra("avg_space", "avg")
+    stateDstream.saveToCassandra("avg_space", "avg", SomeColumns("word", "count"))
 
     ssc.start()
     ssc.awaitTermination()
+    session.close()
   }
 }
