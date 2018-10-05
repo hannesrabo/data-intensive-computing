@@ -54,19 +54,27 @@ object KafkaSpark {
 
 
     // measure the average value for each key in a stateful manner
-    def mappingFunc(key: String, value: Option[Double], state: State[Double]): (String, Double) = {
+    def mappingFunc(key: String, value: Option[Double], state: State[(Int, Double)]): (String, Double) = {
       if (state.exists() && !state.isTimingOut() && value.isDefined) {
-        val existingState = state.get()
-        
-        val newState = (existingState + value.get) / 2 // This is a strange way to calculate average 
-                                                      // but it is the best we can do with only one input state
-        // Push state
+
+        val (oldCount, oldMean) = state.get()
+
+        val newCount = oldCount + 1
+        val differential = (value.get - oldMean) / newCount
+        val newMean = oldMean + differential
+
+        val newState = (newCount, newMean)
+
         state.update(newState)
-        return (key, newState)
+        return (key, newState._2)
+
       } else if (value.isDefined) {
-        val initialValue = value.get
+
+        val initialValue = (1, value.get)
+
         state.update(initialValue)
-        return (key, initialValue)
+        return (key, initialValue._2)
+
       } else {
         return ("Err", 0.0)
       }
