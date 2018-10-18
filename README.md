@@ -11,3 +11,8 @@ The couse is focused on processing on big data, both in streaming applications a
 - GraphX
 - Cassandra
 - Kafka
+
+# Search engine project
+The search engine project (indexing of a portion of the web) is available here:
+
+[https://github.com/hannesrabo/web-indexing-duotrigintillion](https://github.com/hannesrabo/web-indexing-duotrigintillion)
